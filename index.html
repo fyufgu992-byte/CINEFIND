@@ -128,6 +128,12 @@ nav button[aria-current="page"]::after{content:"";position:absolute;bottom:-1px;
 .tabs button[aria-selected="true"]{background:var(--red);color:#fff;font-weight:600}
 .me{display:flex;align-items:center;gap:14px;padding:18px;border-radius:20px;background:linear-gradient(135deg,#FF263826,#8B5CF626);border:1px solid var(--bd)}
 .me .av{width:60px;height:60px}
+.lvl{height:6px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:10px}
+.lvl i{display:block;height:100%;background:var(--red);border-radius:99px}
+.stat{cursor:pointer}
+.me>div:last-child{flex:1;min-width:0}
+.av.emb{object-fit:contain;padding:6px;background:#0d0d0d}
+.ok{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:#22c55e;color:#fff;margin-left:8px;vertical-align:-3px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}
 .stat{background:var(--ch);border:1px solid var(--bd);border-radius:16px;padding:14px;text-align:center}
 .stat b{display:block;font-size:24px}
@@ -197,14 +203,21 @@ const S = { get(k) { try { return JSON.parse(localStorage.getItem("cf_" + k)) ||
 const has = (l, id) => S.get(l).some(m => m.id === id);
 function toggle(l, m) {
   const a = S.get(l), i = a.findIndex(x => x.id === m.id);
-  if (i >= 0) a.splice(i, 1); else a.unshift({ id: m.id, title: m.title, poster_path: m.poster_path, vote_average: m.vote_average, release_date: m.release_date });
+  if (i >= 0) a.splice(i, 1); else a.unshift({ id: m.id, title: m.title, poster_path: m.poster_path, vote_average: m.vote_average, release_date: m.release_date, ...(m.demo ? { demo: true, kind: m.kind, year: m.year, desc: m.desc } : {}) });
   S.set(l, a); return i < 0;
 }
 
 /* ---------- components ---------- */
 const yr = m => (m.release_date || "").slice(0, 4);
 const rate = m => m.vote_average > 0 ? m.vote_average.toFixed(1) : null;
+function demoCard(m, o = {}) {
+  return h("button", { class: "poster", "aria-label": m.title, onclick: () => openInfo(m.title, m.kind, m.year, m.desc) },
+    h("div", { class: "pic", style: posterStyle(m.title) || "background:linear-gradient(160deg,#FF2638,#8B5CF6 60%,#151515)" },
+      o.remove && h("span", { class: "rm", role: "button", "aria-label": "Remove " + m.title, onclick: e => { e.stopPropagation(); o.remove(); } }, ico("x", 14))),
+    SHOW_NAMES && h("span", { class: "t" }, m.title), h("span", { class: "y" }, m.year ? String(m.year) : ""));
+}
 function card(m, o = {}) {
+  if (m.demo) return demoCard(m, o);
   const r = rate(m);
   return h("button", { class: "poster", "aria-label": m.title, onclick: () => m.tv ? ext("https://www.themoviedb.org/tv/" + m.id) : openDetail(m.id) },
     h("div", { class: "pic" }, m.poster_path ? h("img", { src: IMG + "w342" + m.poster_path, alt: "", loading: "lazy" }) : h("div", { class: "nop" }, m.title),
@@ -242,7 +255,7 @@ function filters(F, onChange) {
 }
 
 /* ---------- navigation ---------- */
-const TABS = [["home", "Home", "home"], ["search", "Search", "search"], ["disc", "Discover", "disc"], ["list", "Watchlist", "mark"], ["me", "Profile", "user"]];
+const TABS = [["home", "Home", "home"], ["search", "Search", "search"], ["list", "Watchlist", "mark"], ["me", "Profile", "user"]];
 let cur = "home";
 const hooks = {};
 function go(t) {
@@ -273,7 +286,11 @@ const POSTERS = {
   "VisionQuest": "visionquest.jfif",
   "Avengers: Infinity War": "infinity-war.jfif",
   "Avengers: Endgame": "endgame.jfif",
-  "Blue Lock": "blue-lock.jfif"
+  "Blue Lock": "blue-lock.jfif",
+  "Jujutsu Kaisen": "jujutsu-kaisen.jfif",
+  "Minions": "minions.jfif",
+  "What If...?": "what-if.jfif",
+  "Spider-Man: Across the Spider-Verse": "spider-verse.jfif"
 };
 const SHOW_NAMES = true; // set to true to show titles under the cards again
 const posterStyle = t => POSTERS[t] ? `background-image:linear-gradient(to top,#080808f0 10%,#0000 60%),url("${POSTERS[t]}"),linear-gradient(160deg,#FF263844,#8B5CF633 60%,#151515);background-size:cover;background-position:center` : null;
@@ -294,7 +311,8 @@ function openInfo(title, kind, year, desc) {
       h("h1", { style: "font-size:28px;font-weight:800;letter-spacing:-.025em;line-height:1.1" }, title),
       h("div", { class: "tags" }, h("span", { class: "tag" }, kind), year ? h("span", { class: "tag" }, String(year)) : null),
       h("div", { class: "acts", style: "margin-top:18px" },
-        h("button", { class: "btn", onclick: () => ext("https://www.youtube.com/results?search_query=" + q + "+official+trailer") }, ico("play", 18), "Watch")),
+        h("button", { class: "btn", onclick: () => ext("https://www.youtube.com/results?search_query=" + q + "+official+trailer") }, ico("play", 18), "Watch"),
+        tbtn("watchlist", { id: "d:" + title, title, demo: true, kind, year, desc }, "Saved", "Save", "plus")),
       desc && h("p", { class: "syn", style: "margin-top:18px" }, desc),
       h("p", { class: "small" }, "Short summary. With a TMDB key, Watch plays the trailer inside the app and full details, ratings and cast load here.")));
   if (tg && tg.BackButton) tg.BackButton.show();
@@ -303,20 +321,29 @@ function openInfo(title, kind, year, desc) {
 const ext = u => tg ? tg.openLink(u) : window.open(u, "_blank");
 const PICKS = {
   trend: [
-    ["Avengers: Doomsday","movie",2026,"Marvel Studios film directed by Anthony and Joe Russo, with Robert Downey Jr. as Doctor Doom. Release is planned for December 2026, so check for updates."],
-    ["Spider-Man: Brand New Day","movie",2026,"Sony Pictures and Marvel Studios film starring Tom Holland as Spider-Man, directed by Destin Daniel Cretton."],
-    ["Loki","tv",2021,"Disney+ series starring Tom Hiddleston as Loki, who works with the Time Variance Authority. Season 2 aired in 2023."],
-    ["VisionQuest","tv",2026,"Disney+ series continuing Vision’s story after WandaVision, with Paul Bettany."]
+    ["Avengers: Doomsday", "movie", 2026, "The next big Avengers film from Marvel Studios, directed by Anthony and Joe Russo, who also made Infinity War and Endgame. Robert Downey Jr. returns to the franchise, this time as Doctor Doom. The story pulls heroes from different corners of the Marvel universe into one confrontation. The release is planned for December 2026, so check the trailer and official news for the latest dates."],
+    ["Spider-Man: Brand New Day", "movie", 2026, "A new Spider-Man film from Sony Pictures and Marvel Studios, directed by Destin Daniel Cretton, with Tom Holland back as Peter Parker. It continues the story after No Way Home, where the world forgot who Peter Parker is. Peter has to rebuild his life on his own while new street-level threats appear in New York."],
+    ["Loki", "tv", 2021, "A Disney+ series with Tom Hiddleston as Loki. After he escapes with the Tesseract in 2012, the Time Variance Authority arrests him and forces him to help protect the timeline. Owen Wilson plays the agent Mobius and Sophia Di Martino plays Sylvie. The series has two seasons, and season 2 aired in 2023."],
+    ["VisionQuest", "tv", 2026, "A Disney+ series that continues Vision's story after WandaVision, with Paul Bettany returning in the role. It follows the white Vision as he tries to understand who he is and what he was built for. Watch the trailer to see the latest release information."]
   ],
   movies: [
-    ["Avengers: Infinity War","movie",2018,"The Avengers and the Guardians of the Galaxy try to stop Thanos from collecting all six Infinity Stones. Directed by Anthony and Joe Russo."],
-    ["Avengers: Endgame","movie",2019,"After Thanos’s devastating snap, the surviving Avengers assemble once more to undo it. Directed by Anthony and Joe Russo."]
+    ["Avengers: Doomsday", "movie", 2026, "The next big Avengers film from Marvel Studios, directed by Anthony and Joe Russo, who also made Infinity War and Endgame. Robert Downey Jr. returns to the franchise, this time as Doctor Doom. The story pulls heroes from different corners of the Marvel universe into one confrontation. The release is planned for December 2026, so check the trailer and official news for the latest dates."],
+    ["Spider-Man: Brand New Day", "movie", 2026, "A new Spider-Man film from Sony Pictures and Marvel Studios, directed by Destin Daniel Cretton, with Tom Holland back as Peter Parker. It continues the story after No Way Home, where the world forgot who Peter Parker is. Peter has to rebuild his life on his own while new street-level threats appear in New York."],
+    ["Avengers: Infinity War", "movie", 2018, "The Avengers and the Guardians of the Galaxy join forces to stop Thanos, played by Josh Brolin, from collecting all six Infinity Stones. The fight stretches from New York to Wakanda and deep space. It is directed by Anthony and Joe Russo and ends with one of the most shocking cliffhangers in the Marvel films."],
+    ["Avengers: Endgame", "movie", 2019, "Five years after Thanos wiped out half of all life, the surviving Avengers come together again to undo the damage. They use time travel to search for the Infinity Stones in the past. Directed by Anthony and Joe Russo, it closes the Infinity Saga and became one of the highest-grossing films of all time."]
+  ],
+  series: [
+    ["Loki", "tv", 2021, "A Disney+ series with Tom Hiddleston as Loki. After he escapes with the Tesseract in 2012, the Time Variance Authority arrests him and forces him to help protect the timeline. Owen Wilson plays the agent Mobius and Sophia Di Martino plays Sylvie. The series has two seasons, and season 2 aired in 2023."],
+    ["VisionQuest", "tv", 2026, "A Disney+ series that continues Vision's story after WandaVision, with Paul Bettany returning in the role. It follows the white Vision as he tries to understand who he is and what he was built for. Watch the trailer to see the latest release information."]
   ],
   cartoons: [
-    ["Spider-Man: Across the Spider-Verse","movie",2023,"Miles Morales travels across the multiverse and meets a team of Spider-People, including Gwen Stacy. Animated sequel to Into the Spider-Verse."]
+    ["Spider-Man: Across the Spider-Verse", "movie", 2023, "Miles Morales travels across the multiverse and meets a huge team of Spider-People, including Gwen Stacy and Miguel O'Hara. When Miles disagrees with the team about how to protect the multiverse, he has to choose his own path. This animated sequel to Into the Spider-Verse is known for its striking visual style."],
+    ["Minions", "movie", 2015, "A comedy prequel to the Despicable Me films, directed by Kyle Balda and Pierre Coffin. In 1968 three Minions, Kevin, Stuart and Bob, leave their hideout to find a new villain to serve. Their search takes them to Villain-Con in Orlando, where they meet the criminal mastermind Scarlet Overkill, voiced by Sandra Bullock."],
+    ["What If...?", "tv", 2021, "An animated Marvel Studios series on Disney+ that asks how the Marvel universe would change if key moments had gone differently. The mysterious Watcher, voiced by Jeffrey Wright, introduces every story. Many actors from the live-action films return to voice their characters, including Chadwick Boseman as T'Challa in his final role."]
   ],
   anime: [
-    ["Blue Lock","tv",2022,"Japanese football anime based on the manga by Muneyuki Kaneshiro and Yusuke Nomura. Strikers compete in a harsh program to become Japan’s best forward."]
+    ["Jujutsu Kaisen", "tv", 2020, "A Japanese dark-fantasy anime based on the manga by Gege Akutami, produced by the studio MAPPA. Student Yuji Itadori swallows a cursed object to protect his friends and becomes the host of the powerful curse Sukuna. He joins Tokyo Jujutsu High, where sorcerers such as Megumi Fushiguro, Nobara Kugisaki and their teacher Satoru Gojo fight dangerous curses."],
+    ["Blue Lock", "tv", 2022, "A Japanese football anime based on the manga by Muneyuki Kaneshiro and Yusuke Nomura. After a national defeat, 300 young strikers are locked in a harsh training facility. Only one of them will become Japan's best forward. The story follows Yoichi Isagi, who learns to think like a true striker under the coach Jinpachi Ego."]
   ]
 };
 async function resolvePicks(k) {
@@ -339,7 +366,7 @@ const merge = async (k, live) => {
 
 /* ---------- home ---------- */
 function initHome() {
-  const v = $("v-home"), heroBox = h("div"), trend = h("div"), anime = h("div"), fresh = h("div"), movies = h("div"), cartoons = h("div"), cats = h("div"), recs = h("div"), chips = h("div", { class: "chips" });
+  const v = $("v-home"), heroBox = h("div"), trend = h("div"), anime = h("div"), fresh = h("div"), movies = h("div"), series = h("div"), cartoons = h("div"), cats = h("div"), recs = h("div"), chips = h("div", { class: "chips" });
   let c = 1;
   const drawChips = () => chips.replaceChildren(...CATS.map((x, i) => h("button", { class: "chip", "aria-pressed": i === c, onclick: () => { c = i; drawChips(); loadCat(); } }, x[0])));
   const loadCat = () => fill(cats, skRail, () => api(CATS[c][1], CATS[c][2] || {}), d => rail(withArt(d.results)));
@@ -351,7 +378,7 @@ function initHome() {
   };
   v.append(h("div", { class: "top logo-top" }, h("img", { class: "brandimg", src: LOGO, alt: "" }), h("span", { class: "brandtxt" }, "CINE", h("b", {}, "FIND"))),
     h("button", { class: "fake", onclick: () => go("search") }, ico("search"), "Find your next favorite movie..."),
-    heroBox, sec("Trending Now", trend), sec("Movies", movies), sec("Cartoons", cartoons), recs, sec("Browse", h("div", {}, chips, cats)), sec("Anime", anime), sec("100 New Releases", fresh));
+    heroBox, sec("Trending Now", trend), sec("Movies", movies), sec("Series", series), sec("Cartoons", cartoons), recs, sec("Browse", h("div", {}, chips, cats)), sec("Anime", anime), sec("100 New Releases", fresh));
   drawChips(); loadCat(); hooks.recs();
   heroBox.replaceChildren(h("div", { class: "hero sk" }));
   api("/trending/movie/day").then(d => {
@@ -367,6 +394,11 @@ function initHome() {
   fill(trend, skRail, () => merge("trend", api("/trending/movie/week")), l => rail(l));
   fill(anime, skRail, () => merge("anime", api("/discover/movie", { with_genres: 16, with_original_language: "ja", sort_by: "popularity.desc", "vote_count.gte": 100 })), l => rail(l));
   fill(movies, skRail, () => merge("movies", api("/movie/popular")), l => rail(l));
+  fill(series, skRail, async () => {
+    const [p, d] = await Promise.all([resolvePicks("series"), api("/trending/tv/week")]);
+    const seen = new Set(p.map(m => m.id));
+    return [...p, ...withArt(d.results).filter(m => !seen.has(m.id)).map(m => ({ id: m.id, title: m.name, poster_path: m.poster_path, vote_average: m.vote_average, release_date: m.first_air_date, tv: true }))];
+  }, l => rail(l));
   fill(cartoons, skRail, () => merge("cartoons", api("/discover/movie", { with_genres: 16, with_original_language: "en", sort_by: "popularity.desc", "vote_count.gte": 200 })), l => rail(l));
   const today = new Date().toISOString().slice(0, 10);
   fill(fresh, skGrid, async () => {
@@ -375,10 +407,9 @@ function initHome() {
     return pages.flatMap(d => d.results).filter(m => m.poster_path && !seen.has(m.id) && seen.add(m.id)).slice(0, 100);
   }, l => grid(l));
   if (KEY === "TMDB_API_KEY") {
-    const note = state("tv", "Sample titles", "Add your free TMDB API key at the top of the file to load posters, ratings and the live catalog.");
-    heroBox.replaceChildren(note); [["trend", trend], ["movies", movies], ["cartoons", cartoons], ["anime", anime]].forEach(([k, b]) => b.replaceChildren(tiles(PICKS[k].map(([t, ty, y, d]) => [t, ty === "tv" ? "Series" : "Movie", y, d]))));
+    heroBox.remove(); [["trend", trend], ["movies", movies], ["series", series], ["cartoons", cartoons], ["anime", anime]].forEach(([k, b]) => b.replaceChildren(tiles(PICKS[k].map(([t, ty, y, d]) => [t, ty === "tv" ? "Series" : "Movie", y, d]))));
     cats.closest("section").remove(); fresh.closest("section").remove();
-    [heroBox, trend, anime, movies, cartoons, cats, fresh].forEach(b => b.dataset.demo = "1");
+    [heroBox, trend, anime, movies, series, cartoons, cats, fresh].forEach(b => b.dataset.demo = "1");
   }
 }
 
@@ -388,7 +419,44 @@ let tok = 0;
 function applyF(l, F) {
   return l.filter(m => (!F.genre || (m.genre_ids || []).includes(+F.genre)) && (!F.rating || m.vote_average >= +F.rating) && (!F.year || yr(m) === String(F.year)) && (!F.lang || m.original_language === F.lang));
 }
+const shareApp = () => {
+  const u = "https://t.me/share/url?url=" + encodeURIComponent("https://t.me/CINEFINDHD_BOT") + "&text=" + encodeURIComponent("Find your next favorite movie on CINEFIND");
+  if (tg && tg.openTelegramLink) tg.openTelegramLink(u); else window.open(u, "_blank");
+};
+function localCatalog() {
+  const seen = new Map();
+  const add = (t, ty, y, d, cat) => {
+    const k = t.toLowerCase();
+    if (seen.has(k)) { const o = seen.get(k); if (!o.cats.includes(cat)) o.cats.push(cat); return; }
+    seen.set(k, { demo: true, id: "d:" + t, title: t, kind: ty === "tv" ? "Series" : "Movie", year: y, desc: d || "", cats: [cat] });
+  };
+  Object.entries(PICKS).forEach(([cat, l]) => l.forEach(([t, ty, y, d]) => add(t, ty, y, d, cat)));
+  Object.entries(DEMO).forEach(([cat, l]) => l.forEach(([t, y]) => add(t, "movie", y, "", cat === "films" ? "movies" : cat)));
+  return [...seen.values()].sort((a, b) => (!!POSTERS[b.title] - !!POSTERS[a.title]) || (b.year - a.year));
+}
+function initSearchLocal() {
+  const v = $("v-search"), all = localCatalog(), out = h("div"), rec = h("div"), chipsEl = h("div", { class: "chips" });
+  const FIL = { All: () => true, Movies: m => m.kind === "Movie", Series: m => m.kind === "Series", Cartoons: m => m.cats.includes("cartoons"), Anime: m => m.cats.includes("anime") };
+  let f = "All";
+  const inp = h("input", { id: "q", type: "search", placeholder: "Title, word or year", autocomplete: "off", "aria-label": "Search movies" });
+  const drawChips = () => chipsEl.replaceChildren(...Object.keys(FIL).map(k => h("button", { class: "chip", "aria-pressed": k === f, onclick: () => { f = k; drawChips(); run(); } }, k)));
+  const drawRec = () => { const r = S.get("recent"); rec.replaceChildren(r.length ? sec("Recent searches", h("div", { class: "chips" }, ...r.map(t => h("button", { class: "chip", onclick: () => { inp.value = t; run(); } }, t)), h("button", { class: "chip", onclick: () => { S.set("recent", []); drawRec(); } }, "Clear"))) : ""); };
+  function run() {
+    const q = inp.value.trim().toLowerCase();
+    let l = all.filter(FIL[f]);
+    if (!q) return out.replaceChildren(sec("Try searching for", h("div", { class: "chips" }, ["Marvel", "Spider-Man", "Anime", "Football", "Disney+", "2019"].map(t => h("button", { class: "chip", onclick: () => { inp.value = t; run(); save(); } }, t)))), sec("Featured", grid(l.filter(m => POSTERS[m.title]).slice(0, 12))));
+    l = l.filter(m => (m.title + " " + m.desc + " " + m.cats.join(" ") + " " + m.year).toLowerCase().includes(q));
+    out.replaceChildren(l.length ? h("div", {}, h("p", { class: "small" }, l.length + (l.length === 1 ? " result" : " results")), grid(l)) : state("search", "No results", "Try another title, a year like 2019, or a word like Marvel."));
+  }
+  function save() { const t = inp.value.trim(); if (t.length < 2) return; S.set("recent", [t, ...S.get("recent").filter(x => x.toLowerCase() !== t.toLowerCase())].slice(0, 6)); drawRec(); }
+  inp.addEventListener("input", run);
+  inp.addEventListener("change", save);
+  v.append(h("div", { class: "sbar" }, h("div", { class: "sin" }, ico("search"), inp), chipsEl), rec, out);
+  drawChips(); drawRec();
+  hooks.search = () => { drawRec(); if (!out.children.length) run(); inp.focus({ preventScroll: true }); };
+}
 function initSearch() {
+  if (KEY === "TMDB_API_KEY") return initSearchLocal();
   const v = $("v-search"), out = h("div"), ppl = h("div", { class: "ppl" });
   const inp = h("input", { id: "q", type: "search", placeholder: "Title, actor, genre or year", autocomplete: "off", "aria-label": "Search movies" });
   let timer;
@@ -452,7 +520,7 @@ function initList() {
     const items = S.get(lt);
     v.replaceChildren(h("div", { class: "top" }, h("div", { class: "logo" }, h("span", {}, "My Collection"))),
       h("div", { class: "tabs", role: "tablist" }, LISTS.map(([id, label]) => h("button", { role: "tab", "aria-selected": id === lt, onclick: () => { lt = id; hooks.list(); } }, label + (S.get(id).length ? " (" + S.get(id).length + ")" : "")))),
-      items.length ? gridRm(items) : state("mark", "Nothing here yet", lt === "watchlist" ? "Save movies you want to watch later." : lt === "favorites" ? "Tap the heart on a movie to keep it here." : "Mark movies you have seen to get recommendations.", h("button", { class: "btn", onclick: () => go("disc") }, "Find movies")));
+      items.length ? gridRm(items) : state("mark", "Nothing here yet", lt === "watchlist" ? "Save movies you want to watch later." : lt === "favorites" ? "Tap the heart on a movie to keep it here." : "Mark movies you have seen to get recommendations.", h("button", { class: "btn", onclick: () => go("search") }, "Find movies")));
   };
 }
 function gridRm(items) {
@@ -462,16 +530,24 @@ function gridRm(items) {
 }
 
 /* ---------- profile ---------- */
+const LEVELS = [[0, "Newcomer"], [3, "Movie Fan"], [8, "Cinephile"], [15, "Legend"]];
 function initMe() {
   const v = $("v-me");
   hooks.me = () => {
-    const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+    const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user, wl = S.get("watchlist");
+    const pts = wl.length + S.get("favorites").length + S.get("watched").length * 2;
+    let li = 0; LEVELS.forEach(([n], i) => { if (pts >= n) li = i; });
+    const nxt = LEVELS[li + 1], pct = nxt ? Math.round((pts - LEVELS[li][0]) / (nxt[0] - LEVELS[li][0]) * 100) : 100;
     v.replaceChildren(h("div", { class: "top" }, h("div", { class: "logo" }, h("span", {}, "Profile"))),
-      h("div", { class: "me" }, u && u.photo_url ? h("img", { class: "av", src: u.photo_url, alt: "" }) : h("div", { class: "av", style: "display:grid;place-items:center" }, ico("user", 28)),
-        h("div", {}, h("b", { style: "font-size:18px" }, u ? [u.first_name, u.last_name].filter(Boolean).join(" ") : "Guest"), h("div", { class: "y" }, "Saved on this device"))),
-      h("div", { class: "stats" }, LISTS.map(([id, label]) => h("div", { class: "stat" }, h("b", {}, S.get(id).length), h("span", {}, label)))),
-      h("button", { class: "btn alt", onclick: () => { if (confirm("Clear watchlist, favorites and watched?")) { LISTS.forEach(([id]) => S.set(id, [])); hooks.me(); refreshLists(); } } }, "Clear my collection"),
-      h("p", { class: "small" }, "This product uses the TMDB API but is not endorsed or certified by TMDB. Movie data and artwork are provided by TMDB. Streaming availability is provided by JustWatch via TMDB."));
+      h("div", { class: "me" }, h("img", { class: "av emb", src: LOGO, alt: "" }),
+        h("div", {}, h("b", { style: "font-size:18px" }, u ? [u.first_name, u.last_name].filter(Boolean).join(" ") : "Guest"), h("span", { class: "ok", title: "Verified" }, ico("check", 12)),
+          h("div", { class: "y" }, LEVELS[li][1] + " · " + pts + " pts" + (nxt ? " · " + (nxt[0] - pts) + " to " + nxt[1] : "")),
+          h("div", { class: "lvl", role: "progressbar", "aria-valuenow": pct, "aria-valuemin": 0, "aria-valuemax": 100 }, h("i", { style: "width:" + pct + "%" })))),
+      h("div", { class: "stats" }, LISTS.map(([id, label]) => h("div", { class: "stat", role: "button", onclick: () => { lt = id; go("list"); } }, h("b", {}, S.get(id).length), h("span", {}, label)))),
+      wl.length ? sec("Recently saved", rail(wl.slice(0, 8))) : "",
+      h("div", { class: "acts" }, h("button", { class: "btn", onclick: shareApp }, "Invite friends"), h("button", { class: "btn alt", onclick: () => go("search") }, "Find movies")),
+      h("div", { class: "acts" }, h("button", { class: "btn alt", onclick: () => { if (confirm("Clear watchlist, favorites and watched?")) { LISTS.forEach(([id]) => S.set(id, [])); hooks.me(); refreshLists(); } } }, "Clear my collection")),
+      h("p", { class: "small" }, "Points: 1 for each saved or favorite title, 2 for each watched title. This product uses the TMDB API but is not endorsed or certified by TMDB. Movie data and artwork are provided by TMDB. Streaming availability is provided by JustWatch via TMDB."));
   };
 }
 
